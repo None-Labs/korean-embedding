@@ -1,0 +1,45 @@
+# Byte-compiled / temporary files
+__pycache__/
+*.py[cod]
+
+# Go build artifacts
+bin/
+dist/
+*.exe
+*.test
+*.out
+*.prof
+
+# Secrets & Service Account Keys
+*.key
+*.pem
+.env
+.env.*
+client_secret*.json
+*-*.json
+!korean_bpe_*.json
+!model_config.json
+
+# Datasets & Large Corpus Files
+data/
+*.csv
+*.tsv
+*.parquet
+*.jsonl
+*.txt
+!testdata/**
+!*.md
+*.zip
+*.tar.gz
+
+# Model weights and artifacts
+models/*.bin
+models/*.gob
+artifacts/
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,55 @@
+stages:
+  - lint
+  - test
+  - build
+  - evaluate
+
+default:
+  image: golang:1.24
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}"
+    paths:
+      - /go/pkg/mod/
+      - .cache/
+
+variables:
+  GOPATH: /go
+  CGO_ENABLED: "1"
+
+# 1. Code Quality & Format Check
+lint:
+  stage: lint
+  script:
+    - echo "==> Checking code format..."
+    - if [ -n "$(gofmt -s -l .)" ]; then echo "Unformatted Go code detected:"; gofmt -s -l .; exit 1; fi
+    - echo "==> Running go vet..."
+    - go vet ./...
+
+# 2. Unit and Race Testing
+test:
+  stage: test
+  script:
+    - echo "==> Running Go unit and race tests..."
+    - go test -v -race ./pkg/...
+
+# 3. Binary Compilation
+build:
+  stage: build
+  script:
+    - echo "==> Compiling CLI binary..."
+    - make build
+  artifacts:
+    name: "binaries-$CI_COMMIT_REF_SLUG"
+    paths:
+      - bin/embedder
+    expire_in: 1 week
+
+# 4. Semantic Engine Verification
+evaluate:
+  stage: evaluate
+  dependencies:
+    - build
+  script:
+    - echo "==> Evaluating 3024-d Embedding Engine CLI..."
+    - ./bin/embedder embed --text="오늘 프로젝트 회의는 오후 3시에 대회의실에서 진행하겠습니다." --dim=3024 --json
+    - ./bin/embedder similarity --text1="정말 잘하셨네요, 참 대단하십니다." --text2="진짜 최고네요 칭찬합니다." --json
