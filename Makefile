@@ -52,6 +52,10 @@ run-cluster: build
 	@echo "==> Running test clustering..."
 	./$(EMBEDDER_BIN) cluster --k=2
 
+run-rag: build
+	@echo "==> Running Korean RAG demonstration..."
+	./$(EMBEDDER_BIN) rag demo
+
 help:
 	@echo "Available commands:"
 	@echo "  make build       - Build CLI binary ($(EMBEDDER_BIN))"
@@ -63,3 +67,5 @@ help:
 	@echo "  make run-embed   - Test single utterance embedding"
 	@echo "  make run-sim     - Test semantic similarity breakdown"
 	@echo "  make run-cluster - Test utterance clustering"
+	@echo "  make run-rag     - Run Korean RAG pipeline demo"
+

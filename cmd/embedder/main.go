@@ -8,8 +8,10 @@ import (
 	"math"
 	"os"
 	"strings"
+	"time"
 
 	"gitlab.com/none-labs/korean-embedding/pkg/embedder"
+	"gitlab.com/none-labs/korean-embedding/pkg/rag"
 )
 
 func main() {
@@ -28,6 +30,8 @@ func main() {
 		runSimilarity(subArgs)
 	case "cluster":
 		runCluster(subArgs)
+	case "rag":
+		runRAG(subArgs)
 	case "version":
 		fmt.Println("Korean Utterance 3024-d Embedding Engine v1.0.0 (Pure Go / Limmireu Pipeline)")
 	case "help", "-h", "--help":
@@ -49,6 +53,7 @@ Available Commands:
   embed       Generate 3024-d unit embedding and speaker metadata for an utterance
   similarity  Compare two utterances across 4 semantic subspaces and MRL scales
   cluster     Cluster utterances by social stance, age hierarchy, and communicative intent
+  rag         Korean semantic RAG pipeline (demo, query, index) with MRL 2-stage retrieval
   version     Display engine version
 
 Run 'embedder <command> -h' for more details on a specific command.`)
@@ -455,4 +460,245 @@ func previewTail(vec []float32, n int) []string {
 		res[i] = fmt.Sprintf("%.4f", vec[start+i])
 	}
 	return res
+}
+
+func runRAG(args []string) {
+	if len(args) == 0 {
+		printRAGUsage()
+		return
+	}
+
+	subCmd := args[0]
+	subArgs := args[1:]
+
+	switch subCmd {
+	case "demo":
+		runRAGDemo(subArgs)
+	case "query":
+		runRAGQuery(subArgs)
+	case "index":
+		runRAGIndex(subArgs)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown rag command: %s\n\n", subCmd)
+		printRAGUsage()
+		os.Exit(1)
+	}
+}
+
+func printRAGUsage() {
+	fmt.Println(`Korean Semantic RAG Subcommands:
+
+Usage:
+  embedder rag <command> [arguments]
+
+Available Commands:
+  demo    Run an end-to-end Korean RAG demonstration with sample enterprise policies
+  query   Query an indexed knowledge base or default corpus with MRL 2-stage retrieval
+  index   Chunk and index JSON documents into a persistent vector store snapshot
+
+Examples:
+  embedder rag demo
+  embedder rag query --query="회의실 예약 절차를 알려주세요" --top_k=2`)
+}
+
+func runRAGDemo(args []string) {
+	fmt.Println("================================================================================")
+	fmt.Println("   3024-d Korean Utterance Semantic RAG Demonstration (Pure Go / Cost-First)")
+	fmt.Println("================================================================================")
+
+	sampleDocs := []rag.Document{
+		{
+			ID:    "doc_meeting_room",
+			Title: "회의실 예약 및 사용 지침",
+			Content: `제1조 (목적) 본 지침은 사내 공용 회의실의 공정하고 효율적인 예약을 지원합니다.
+제2조 (예약 방법) 대회의실 및 소회의실 예약은 사내 인트라넷 캘린더를 통해 최소 1일 전 신청해야 합니다.
+제3조 (사용 시간) 1회 최대 사용 가능 시간은 2시간이며, 정기 회의는 총무팀의 사전 승인이 필요합니다.
+제4조 (퇴실 규정) 회의 종료 후에는 조명과 빔프로젝터를 끄고 정리정돈을 완료해야 합니다.`,
+			Category:  "사내시설",
+			CreatedAt: time.Now(),
+		},
+		{
+			ID:    "doc_corporate_card",
+			Title: "법인카드 사용 및 지출 결재 규정",
+			Content: `제1조 (원칙) 법인카드는 업무 수행과 직결된 비용(식대, 교통비, 사무용품비)에 한하여 사용 가능합니다.
+제2조 (한도 및 승인) 건당 50만원 이상의 지출은 집행 3일 전 부서장의 사전 품의 승인을 반드시 득해야 합니다.
+제3조 (영수증 제출) 모든 지출 영수증은 결제일로부터 7영업일 이내에 경비 정산 시스템에 등록해야 합니다.
+제4조 (금지 행위) 휴일 및 심야(23시 이후) 사용과 유흥업소 결제는 엄격히 금지됩니다.`,
+			Category:  "재무회계",
+			CreatedAt: time.Now(),
+		},
+		{
+			ID:    "doc_annual_leave",
+			Title: "연차 유급휴가 및 경조사 복지 제도",
+			Content: `제1조 (연차 발생) 1년간 80% 이상 출근한 직원에게는 15일의 유급휴가가 주어집니다.
+제2조 (반차 제도) 연차는 오전 반차(4시간) 또는 오후 반차(4시간)로 분할 사용 가능합니다.
+제3조 (경조 휴가) 본인 결혼 시 유급휴가 5일 및 축의금 50만원이 지급됩니다. 부모상 시 유급휴가 5일이 지급됩니다.`,
+			Category:  "인사복지",
+			CreatedAt: time.Now(),
+		},
+	}
+
+	pipeline, err := rag.NewPipeline(rag.DefaultPipelineConfig())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing RAG pipeline: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("==> 1. Indexing %d Enterprise Knowledge Documents...\n", len(sampleDocs))
+	indexedCount, err := pipeline.IndexDocuments(sampleDocs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Indexing failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("    Successfully segmented & indexed %d semantic chunks (3024-d Unit Vectors).\n\n", indexedCount)
+
+	queries := []string{
+		"법인카드로 50만원 넘게 결제하려면 사전 결재를 받아야 하나요?",
+		"본인 결혼할 때 경조 휴가는 며칠이나 나오나요?",
+		"회의실 사용 시간은 최대 몇 시간까지 예약 가능한가요?",
+	}
+
+	for qIdx, q := range queries {
+		fmt.Printf("--------------------------------------------------------------------------------\n")
+		fmt.Printf("[Test Query %d] \"%s\"\n", qIdx+1, q)
+		fmt.Printf("--------------------------------------------------------------------------------\n")
+
+		resp, err := pipeline.Query(q, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Query failed: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("• Query Intent (화행)   : %s (신뢰도: %.1f%%)\n", resp.QueryMetadata.SpeechAct, resp.QueryMetadata.SpeechActProb*100)
+		fmt.Printf("• Speech Level (어조)  : %s (Politeness: %.2f)\n", resp.QueryMetadata.SpeechLevel, resp.QueryMetadata.Politeness)
+		fmt.Printf("• Retrieval Latency    : %v (전체 응답 시간: %v)\n", resp.RetrievalTime, resp.TotalLatency)
+		fmt.Printf("• Retrieved Top Chunks : %d 건\n", len(resp.RetrievedChunks))
+
+		for _, r := range resp.RetrievedChunks {
+			fmt.Printf("  [%d위] 문서: '%s' (종합점수: %.4f | 명제: %.4f, 의도: %.4f, 관계: %.4f)\n",
+				r.Rank, r.Chunk.DocTitle, r.Score, r.LiteralScore, r.IntentScore, r.SocialScore)
+			fmt.Printf("        내용: %s\n", strings.TrimSpace(r.Chunk.Text))
+		}
+
+		fmt.Printf("\n[Synthesized Grounded Answer (LLM/Extractive)]:\n%s\n\n", resp.GeneratedAnswer)
+	}
+	fmt.Println("================================================================================")
+}
+
+func runRAGQuery(args []string) {
+	fs := flag.NewFlagSet("rag query", flag.ExitOnError)
+	queryText := fs.String("query", "", "User question to query (required)")
+	topK := fs.Int("top_k", 3, "Number of chunks to retrieve")
+	indexPath := fs.String("index", "", "Path to saved index file (.gob)")
+	jsonOutput := fs.Bool("json", false, "Output results in JSON format")
+
+	_ = fs.Parse(args)
+
+	if *queryText == "" {
+		fmt.Fprintln(os.Stderr, "Error: --query is required.")
+		fs.Usage()
+		os.Exit(1)
+	}
+
+	pipeline, err := rag.NewPipeline(rag.DefaultPipelineConfig())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing pipeline: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *indexPath != "" {
+		if err := pipeline.Load(*indexPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading index %s: %v\n", *indexPath, err)
+			os.Exit(1)
+		}
+	} else {
+		// Index default sample knowledge base
+		defaultDocs := []rag.Document{
+			{
+				ID:       "policy_faq_01",
+				Title:    "사내 업무 처리 및 결재 규정",
+				Content:  "법인카드 결제는 건당 50만원 이상 시 사전 품의 승인이 필수입니다. 1회 회의실 최대 예약 시간은 2시간입니다. 본인 결혼 경조휴가는 5일입니다.",
+				Category: "규정FAQ",
+			},
+		}
+		_, _ = pipeline.IndexDocuments(defaultDocs)
+	}
+
+	opts := rag.DefaultSearchOptions()
+	opts.TopK = *topK
+
+	resp, err := pipeline.Query(*queryText, &opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Query error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(resp)
+		return
+	}
+
+	fmt.Println("================================================================================")
+	fmt.Printf("• User Query         : %s\n", resp.Query)
+	fmt.Printf("• Inferred SpeechAct : %s\n", resp.QueryMetadata.SpeechAct)
+	fmt.Printf("• Inferred Stance    : %s\n", resp.QueryMetadata.SocialStance)
+	fmt.Printf("• Latency            : Retrieval=%v, Total=%v\n", resp.RetrievalTime, resp.TotalLatency)
+	fmt.Println("--------------------------------------------------------------------------------")
+	fmt.Println("                      Retrieved Knowledge Chunks")
+	fmt.Println("--------------------------------------------------------------------------------")
+	for _, r := range resp.RetrievedChunks {
+		fmt.Printf("• Rank %d: '%s' (Score: %.4f | Literal: %.4f, Intent: %.4f, Social: %.4f)\n",
+			r.Rank, r.Chunk.DocTitle, r.Score, r.LiteralScore, r.IntentScore, r.SocialScore)
+		fmt.Printf("  %s\n", r.Chunk.Text)
+	}
+	fmt.Println("--------------------------------------------------------------------------------")
+	fmt.Printf("[Grounded Answer]:\n%s\n", resp.GeneratedAnswer)
+	fmt.Println("================================================================================")
+}
+
+func runRAGIndex(args []string) {
+	fs := flag.NewFlagSet("rag index", flag.ExitOnError)
+	inputPath := fs.String("input", "", "Path to input JSON file containing documents (required)")
+	outputPath := fs.String("output", "rag_index.gob", "Path to output persistent index file (.gob)")
+
+	_ = fs.Parse(args)
+
+	if *inputPath == "" {
+		fmt.Fprintln(os.Stderr, "Error: --input is required.")
+		fs.Usage()
+		os.Exit(1)
+	}
+
+	data, err := os.ReadFile(*inputPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading input file %s: %v\n", *inputPath, err)
+		os.Exit(1)
+	}
+
+	var docs []rag.Document
+	if err := json.Unmarshal(data, &docs); err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing JSON documents: %v\n", err)
+		os.Exit(1)
+	}
+
+	pipeline, err := rag.NewPipeline(rag.DefaultPipelineConfig())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating pipeline: %v\n", err)
+		os.Exit(1)
+	}
+
+	count, err := pipeline.IndexDocuments(docs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Indexing error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := pipeline.Save(*outputPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Error saving index to %s: %v\n", *outputPath, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Successfully indexed %d documents into %d chunks and saved to %s\n", len(docs), count, *outputPath)
 }
