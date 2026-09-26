@@ -11,7 +11,7 @@ all: fmt vet build test
 
 build: $(EMBEDDER_BIN)
 
-GO_SRCS := $(shell find cmd pkg -type f -name '*.go' 2>/dev/null)
+GO_SRCS := $(shell find cmd pkg ../korean-tokenizer/pkg -type f -name '*.go' 2>/dev/null)
 
 $(EMBEDDER_BIN): $(GO_SRCS)
 	@mkdir -p $(BIN_DIR)

@@ -108,6 +108,7 @@ func TestVectorStoreAndMRLRetrieval(t *testing.T) {
 
 	searchOpts := DefaultSearchOptions()
 	searchOpts.TopK = 1
+	searchOpts.QueryText = "회의실 사용하고 싶은데 어떻게 예약하나요?"
 
 	results, err := store.Search(qRes.Vector, qRes.Subspaces, searchOpts)
 	if err != nil {

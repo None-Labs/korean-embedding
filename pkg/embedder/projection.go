@@ -53,8 +53,9 @@ func NewSubspaceProjection(hiddenDim int) *SubspaceProjection {
 func initXavier(inDim, outDim int) []float32 {
 	scale := float32(math.Sqrt(6.0 / float64(inDim+outDim)))
 	w := make([]float32, inDim*outDim)
+	rng := rand.New(rand.NewSource(int64(inDim*1000 + outDim)))
 	for i := range w {
-		w[i] = (rand.Float32()*2.0 - 1.0) * scale
+		w[i] = (rng.Float32()*2.0 - 1.0) * scale
 	}
 	return w
 }
