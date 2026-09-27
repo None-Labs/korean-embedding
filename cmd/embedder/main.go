@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/none-labs/korean-embedding/pkg/dyadic"
 	"gitlab.com/none-labs/korean-embedding/pkg/embedder"
 	"gitlab.com/none-labs/korean-embedding/pkg/rag"
 )
@@ -32,6 +33,8 @@ func main() {
 		runCluster(subArgs)
 	case "rag":
 		runRAG(subArgs)
+	case "dyadic":
+		runDyadic(subArgs)
 	case "version":
 		fmt.Println("Korean Utterance 3024-d Embedding Engine v1.0.0 (Pure Go / Limmireu Pipeline)")
 	case "help", "-h", "--help":
@@ -54,6 +57,7 @@ Available Commands:
   similarity  Compare two utterances across 4 semantic subspaces and MRL scales
   cluster     Cluster utterances by social stance, age hierarchy, and communicative intent
   rag         Korean semantic RAG pipeline (demo, query, index) with MRL 2-stage retrieval
+  dyadic      Analyze 1-on-1 KakaoTalk chat logs for paragraph-level emotional volatility (EVI)
   version     Display engine version
 
 Run 'embedder <command> -h' for more details on a specific command.`)
@@ -701,4 +705,74 @@ func runRAGIndex(args []string) {
 	}
 
 	fmt.Printf("Successfully indexed %d documents into %d chunks and saved to %s\n", len(docs), count, *outputPath)
+}
+
+func runDyadic(args []string) {
+	fs := flag.NewFlagSet("dyadic", flag.ExitOnError)
+	chatPath := fs.String("chat", "/home/limmireu1214/_projects/KakaoTalkChats.txt", "Path to KakaoTalk chat log file")
+	clientName := fs.String("client", "미르", "Client speaker name (subject under psychological volatility tracking)")
+	partnerName := fs.String("partner", "🎈", "Partner speaker name (interpersonal stimulus provider)")
+	gapMinutes := fs.Float64("gap", 30.0, "Maximum gap (in minutes) to group contiguous messages into a paragraph turn")
+	jsonPath := fs.String("json", "", "Optional path to export JSON analysis report")
+	mdPath := fs.String("md", "", "Optional path to export Markdown analysis report")
+	modelPath := fs.String("model", "", "Path to optional trained BPE tokenizer JSON")
+
+	_ = fs.Parse(args)
+
+	cfg := embedder.DefaultEmbedderConfig()
+	if *modelPath != "" {
+		cfg.BPETokenizerPath = *modelPath
+	}
+
+	fmt.Println("==> 1. Initializing 3024-d Korean Utterance Embedding Engine...")
+	emb, err := embedder.NewEmbedder(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing embedder: %v\n", err)
+		os.Exit(1)
+	}
+
+	analysisCfg := dyadic.DefaultAnalysisConfig()
+	analysisCfg.ClientSpeakerName = *clientName
+	analysisCfg.PartnerSpeakerName = *partnerName
+	analysisCfg.MaxTurnGapMinutes = *gapMinutes
+
+	fmt.Printf("==> 2. Parsing KakaoTalk chat logs: %s\n", *chatPath)
+	startTime := time.Now()
+	paragraphs, totalRaw, err := dyadic.ParseKakaoTalkFile(*chatPath, analysisCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing chat file: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("    Parsed %d raw messages into %d aggregated paragraph turns (took %v)\n",
+		totalRaw, len(paragraphs), time.Since(startTime))
+
+	fmt.Println("==> 3. Running Dyadic 1-on-1 Emotional Volatility Analysis (3024-d Semantic Embeddings)...")
+	analysisStart := time.Now()
+	report, err := dyadic.AnalyzeDyadicChats(paragraphs, emb, analysisCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error analyzing dyadic chats: %v\n", err)
+		os.Exit(1)
+	}
+	report.TotalRawMessages = totalRaw
+	fmt.Printf("    Dyadic inference complete for %d interaction pairs (took %v)\n\n",
+		report.TotalDyadicPairs, time.Since(analysisStart))
+
+	// Print summary
+	dyadic.PrintConsoleSummary(report)
+
+	if *jsonPath != "" {
+		if err := dyadic.SaveJSONReport(report, *jsonPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving JSON report: %v\n", err)
+		} else {
+			fmt.Printf("==> Saved JSON Report to: %s\n", *jsonPath)
+		}
+	}
+
+	if *mdPath != "" {
+		if err := dyadic.GenerateMarkdownReport(report, *mdPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Error saving Markdown report: %v\n", err)
+		} else {
+			fmt.Printf("==> Saved Markdown Report to: %s\n", *mdPath)
+		}
+	}
 }
